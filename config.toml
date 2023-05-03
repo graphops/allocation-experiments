@@ -1,13 +1,13 @@
 id = "0xd75c4dbcb215a6cf9097cfbcc70aab2596b96a9c"
 writedir = "data"
 readdir = "data"
-max_allocations = 10
+max_allocations = 50
 whitelist = []
 blacklist = []
 frozenlist = []
 pinnedlist = []
 allocation_lifetime = 28
-gas = 100
+gas = 0
 min_signal = 1000
 verbose = false
 num_reported_options = 2

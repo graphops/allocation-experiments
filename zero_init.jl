@@ -1,14 +1,14 @@
 using AllocationOpt
 using SemioticOpt
 using JSON3
-
 using Random
+
 import AllocationOpt: optimize
 
 include("console_logger.jl")
 
-
 function optimize(::Val{:optimal}, Ω, ψ, σ, K, Φ, Ψ, g, rixs)
+
     rixs = 1:length(Ω)
 
     # Only use the eligible subgraphs
@@ -41,19 +41,20 @@ function optimize(::Val{:optimal}, Ω, ψ, σ, K, Φ, Ψ, g, rixs)
         return v
     end
     
-    xinit = rand(Float64, length(_ψ))
-
     logger = VectorLogger(name="i", data=Int32[], f=(a; kws...) -> kws[:i])
 
     alg = PairwiseGreedyOpt(;
         kmax=K,
         x=zeros(length(_ψ)),
-        xinit=xinit,
+        xinit=zeros(length(_ψ)),
         f=f,
         a=makeanalytic,
         hooks=[
             StopWhen((a; kws...) -> kws[:f](kws[:z]) ≥ kws[:f](SemioticOpt.x(a))),
             StopWhen(stop_full),
+            # ConsoleLogger(name="fcurr", f=(a; kws...) -> -kws[:f](SemioticOpt.x(a)), frequency=1),
+            # ConsoleLogger(name="fnew", f=(a; kws...) -> -kws[:f](kws[:z]), frequency=1),
+            # ConsoleLogger(name="nnz", f=(a; kws...) -> AllocationOpt.nonzero(kws[:z]) |> length, frequency=1),
             logger,
         ],
     )
@@ -65,18 +66,20 @@ function optimize(::Val{:optimal}, Ω, ψ, σ, K, Φ, Ψ, g, rixs)
     nonzeros[1] = _x[:, 1] |> AllocationOpt.nonzero |> length
     profits[:, 1] .= AllocationOpt.profit.(AllocationOpt.indexingreward.(_x[:, 1], Ω, ψ, Φ, Ψ), g)
 
-    # @show nonzeros[end]
+    @show nonzeros[end]
+
+    _xopt = AllocationOpt.optimizeanalytic(_Ω, _ψ, σ)
+    @show _xopt |> AllocationOpt.nonzero |> length
+    @show AllocationOpt.profit.(AllocationOpt.indexingreward.(_xopt, _Ω, _ψ, Φ, Ψ), g) |> sum
 
     return _x, nonzeros, profits
 end
 
 function main()
     profits = Float64[]
-    for _ ∈ 1:10
-        AllocationOpt.main("config.toml")
-        d = readlines("data/report.json") |> first |> JSON3.read |> copy
-        push!(profits, d[:strategies][1][:profit])
-    end
+    AllocationOpt.main("config.toml")
+    d = readlines("data/report.json") |> first |> JSON3.read |> copy
+    push!(profits, d[:strategies][1][:profit])
     @show profits
     return nothing
 end
