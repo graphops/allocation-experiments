@@ -1,14 +1,7 @@
 # allocation-experiments
 
-- [x] Random initialization versus x1 = 0. 
-    - Same output?
-    - Same time to converge? 
-    - Same number of iterations?
-
-- [x] If x1 = Halpern output, does the algorithm progress? (If so, then we have anecdotal improvement evidence)
-
-If there are multiple swaps for each iteration
-- [ ] Brute force (on small problem) versus PGO. Same output? 
+This repository documents experiments for the pairwise-greedy optimisation algorithm for the indexing allocation optimisation problem.
+For now, see the [blog post](https://semiotic.ai/articles/indexer-allocation-optimisation/) for a description of the problem.
 
 ## Zeros Initialisation
 
@@ -190,7 +183,7 @@ Number of nonzeros: 102
 PGO Profit: 247506.17506435083
 ```
 
-# Opt Initialisation
+## Opt Initialisation
 
 Here we start from the analytic solution.
 
