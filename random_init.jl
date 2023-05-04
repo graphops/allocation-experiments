@@ -1,19 +1,29 @@
 using AllocationOpt
 using SemioticOpt
 using JSON3
+using InvertedIndices
 
 using Random
+using StatsBase
 import AllocationOpt: optimize
 
 include("console_logger.jl")
 
 
 function optimize(::Val{:optimal}, Ω, ψ, σ, K, Φ, Ψ, g, rixs)
-    rixs = 1:length(Ω)
+    println("Gas: $g")
+    println("Max Allocations: $K")
+
+    # rixs = 1:length(Ω)
 
     # Only use the eligible subgraphs
     _Ω = @view Ω[rixs]
     _ψ = @view ψ[rixs]
+
+    x = zeros(length(_ψ))
+    sampleixs = sample(1:length(_ψ), rand(1:length(_ψ)), replace=false)
+    x[sampleixs] .= rand(Float64, length(sampleixs))
+
 
     # Helper function to compute profit
     obj = x -> -AllocationOpt.profit.(AllocationOpt.indexingreward.(x, _Ω, _ψ, Φ, Ψ), g) |> sum
@@ -40,43 +50,47 @@ function optimize(::Val{:optimal}, Ω, ψ, σ, K, Φ, Ψ, g, rixs)
         end
         return v
     end
-    
-    xinit = rand(Float64, length(_ψ))
 
     logger = VectorLogger(name="i", data=Int32[], f=(a; kws...) -> kws[:i])
 
+    println("Initial number of nonzeros: $(AllocationOpt.nonzero(x) |> length)")
+
     alg = PairwiseGreedyOpt(;
         kmax=K,
-        x=zeros(length(_ψ)),
-        xinit=xinit,
+        x=x,
+        xinit=zeros(length(_ψ)),
         f=f,
         a=makeanalytic,
         hooks=[
             StopWhen((a; kws...) -> kws[:f](kws[:z]) ≥ kws[:f](SemioticOpt.x(a))),
             StopWhen(stop_full),
             logger,
-        ],
+            # ConsoleLogger(name="i", f=(a; kws...) -> kws[:i], frequency=5),
+            # ConsoleLogger(name="fcurr", f=(a; kws...) -> -kws[:f](SemioticOpt.x(a)), frequency=1),
+            # ConsoleLogger(name="fnew", f=(a; kws...) -> -kws[:f](kws[:z]), frequency=5),
+            # ConsoleLogger(name="nnz", f=(a; kws...) -> AllocationOpt.nonzero(kws[:z]) |> length, frequency=5)
+        ]
     )
     sol = minimize!(obj, alg)
 
-    @show SemioticOpt.data(logger)[end]
+
+    println("Iterations to converge: $(SemioticOpt.data(logger)[end])")
 
     _x[rixs, 1] .= SemioticOpt.x(sol)
     nonzeros[1] = _x[:, 1] |> AllocationOpt.nonzero |> length
     profits[:, 1] .= AllocationOpt.profit.(AllocationOpt.indexingreward.(_x[:, 1], Ω, ψ, Φ, Ψ), g)
 
-    # @show nonzeros[end]
+    println("Number of nonzeros: $(nonzeros[end])")
+    println("PGO Profit: $(profits[:, end] |> sum)")
+    println()
 
     return _x, nonzeros, profits
 end
 
 function main()
     profits = Float64[]
-    for _ ∈ 1:10
+    for _ ∈ 1:3
         AllocationOpt.main("config.toml")
-        d = readlines("data/report.json") |> first |> JSON3.read |> copy
-        push!(profits, d[:strategies][1][:profit])
     end
-    @show profits
     return nothing
 end

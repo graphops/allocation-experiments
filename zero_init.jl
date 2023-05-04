@@ -9,7 +9,10 @@ include("console_logger.jl")
 
 function optimize(::Val{:optimal}, Ω, ψ, σ, K, Φ, Ψ, g, rixs)
 
-    rixs = 1:length(Ω)
+    println("Gas: $g")
+    println("Max Allocations: $K")
+
+    # rixs = 1:length(Ω)
 
     # Only use the eligible subgraphs
     _Ω = @view Ω[rixs]
@@ -40,7 +43,7 @@ function optimize(::Val{:optimal}, Ω, ψ, σ, K, Φ, Ψ, g, rixs)
         end
         return v
     end
-    
+
     logger = VectorLogger(name="i", data=Int32[], f=(a; kws...) -> kws[:i])
 
     alg = PairwiseGreedyOpt(;
@@ -56,21 +59,22 @@ function optimize(::Val{:optimal}, Ω, ψ, σ, K, Φ, Ψ, g, rixs)
             # ConsoleLogger(name="fnew", f=(a; kws...) -> -kws[:f](kws[:z]), frequency=1),
             # ConsoleLogger(name="nnz", f=(a; kws...) -> AllocationOpt.nonzero(kws[:z]) |> length, frequency=1),
             logger,
-        ],
+        ]
     )
     sol = minimize!(obj, alg)
 
-    @show SemioticOpt.data(logger)[end]
+    println("Iterations to converge: $(SemioticOpt.data(logger)[end])")
 
     _x[rixs, 1] .= SemioticOpt.x(sol)
     nonzeros[1] = _x[:, 1] |> AllocationOpt.nonzero |> length
     profits[:, 1] .= AllocationOpt.profit.(AllocationOpt.indexingreward.(_x[:, 1], Ω, ψ, Φ, Ψ), g)
 
-    @show nonzeros[end]
+    println("Number of nonzeros: $(nonzeros[end])")
+    println("PGO Profit: $(profits[:, end] |> sum)")
 
     _xopt = AllocationOpt.optimizeanalytic(_Ω, _ψ, σ)
-    @show _xopt |> AllocationOpt.nonzero |> length
-    @show AllocationOpt.profit.(AllocationOpt.indexingreward.(_xopt, _Ω, _ψ, Φ, Ψ), g) |> sum
+    println("Analytic optimum nonzeros: $(length(AllocationOpt.nonzero(_xopt)))")
+    println("Analytic optimum profit: $(AllocationOpt.profit.(AllocationOpt.indexingreward.(_xopt, _Ω, _ψ, Φ, Ψ), g) |> sum)")
 
     return _x, nonzeros, profits
 end
@@ -78,8 +82,5 @@ end
 function main()
     profits = Float64[]
     AllocationOpt.main("config.toml")
-    d = readlines("data/report.json") |> first |> JSON3.read |> copy
-    push!(profits, d[:strategies][1][:profit])
-    @show profits
     return nothing
 end

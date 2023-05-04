@@ -13,7 +13,7 @@ function optimize(::Val{:optimal}, Ω, ψ, σ, K, Φ, Ψ, g, rixs)
 
     rixs = 1:length(Ω)
 
-    K = length(Ω)
+    # K = length(Ω)
 
     # Only use the eligible subgraphs
     _Ω = @view Ω[rixs]
@@ -58,12 +58,12 @@ function optimize(::Val{:optimal}, Ω, ψ, σ, K, Φ, Ψ, g, rixs)
         hooks=[
             StopWhen((a; kws...) -> kws[:f](kws[:z]) ≥ kws[:f](SemioticOpt.x(a)) && length(SemioticOpt.nonzeroixs(SemioticOpt.x(a))) ≤ SemioticOpt.kmax(a)),
             StopWhen(stop_full),
-            # ConsoleLogger(name="f(x)", f=(a; kws...) -> -kws[:f](SemioticOpt.x(a)), frequency=1),
-            # ConsoleLogger(name="f(z)", f=(a; kws...) -> -kws[:f](kws[:z]), frequency=1),
-            # ConsoleLogger(name="k", f=(a; kws...) -> length(SemioticOpt.nonzeroixs(SemioticOpt.x(a))), frequency=1),
+            ConsoleLogger(name="f(x)", f=(a; kws...) -> -kws[:f](SemioticOpt.x(a)), frequency=1),
+            ConsoleLogger(name="f(z)", f=(a; kws...) -> -kws[:f](kws[:z]), frequency=1),
+            ConsoleLogger(name="k", f=(a; kws...) -> length(SemioticOpt.nonzeroixs(SemioticOpt.x(a))), frequency=1),
             # ConsoleLogger(name="kmax", f=(a; kws...) -> SemioticOpt.kmax(a), frequency=1),
             logger,
-        ],
+        ]
     )
     sol = minimize!(obj, alg)
 

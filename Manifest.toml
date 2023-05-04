@@ -2,7 +2,7 @@
 
 julia_version = "1.8.5"
 manifest_format = "2.0"
-project_hash = "1581b8740413798f1d44a19cb3d74e4b831dbf42"
+project_hash = "81732cda1e361c2e5749524c37d4a9e822f00e0f"
 
 [[deps.AbstractFFTs]]
 deps = ["ChainRulesCore", "LinearAlgebra"]
@@ -24,7 +24,7 @@ version = "3.6.1"
 
 [[deps.AllocationOpt]]
 deps = ["CSV", "Formatting", "JSON", "LinearAlgebra", "Mocking", "PackageCompiler", "Roots", "SemioticOpt", "SplitApplyCombine", "TOML", "TheGraphData", "TypedTables"]
-git-tree-sha1 = "15f60bbeca5515bf333e7affe6d71e3f62ddcb3a"
+git-tree-sha1 = "aacba62367d63e4d9efe7b1564f15a26f069654c"
 repo-rev = "main"
 repo-url = "https://github.com/graphprotocol/allocation-optimizer"
 uuid = "e2472b13-1eb9-46f1-ac4b-64ea04136a8a"
@@ -123,6 +123,12 @@ version = "1.5.1"
 git-tree-sha1 = "e8119c1a33d267e16108be441a287a6981ba1630"
 uuid = "9a962f9c-6df0-11e9-0e5d-c546b8b5ee8a"
 version = "1.14.0"
+
+[[deps.DataStructures]]
+deps = ["Compat", "InteractiveUtils", "OrderedCollections"]
+git-tree-sha1 = "d1fff3a548102f48987a52a2e0d114fa97d730f0"
+uuid = "864edb3b-99cc-5e75-8d2d-829cb0a9cfe8"
+version = "0.18.13"
 
 [[deps.DataValueInterfaces]]
 git-tree-sha1 = "bfc1187b79289637fa0ef6d4436ebdfe6905cbd6"
@@ -382,6 +388,12 @@ deps = ["Artifacts", "Libdl"]
 uuid = "c8ffd9c3-330d-5841-b78e-0817d7145fa1"
 version = "2.28.0+0"
 
+[[deps.Missings]]
+deps = ["DataAPI"]
+git-tree-sha1 = "f66bdc5de519e8f8ae43bdc598782d35a25b1272"
+uuid = "e1d29d7a-bbdc-5cf2-9ac0-f12de2c33e28"
+version = "1.1.0"
+
 [[deps.Mmap]]
 uuid = "a63ad114-7e13-5084-954f-fe012c677804"
 
@@ -520,11 +532,11 @@ version = "1.2.0"
 
 [[deps.SemioticOpt]]
 deps = ["Accessors", "InvertedIndices", "Lazy", "LinearAlgebra", "Zygote"]
-git-tree-sha1 = "aa0a71db5ad4cfc49f5a4fb24c786805c311f184"
+git-tree-sha1 = "a082db067d27926fa6227fee1280dd0a495fe435"
 repo-rev = "main"
 repo-url = "https://github.com/semiotic-ai/SemioticOpt.jl.git"
 uuid = "a0c0fc10-8635-40d2-82ff-39f738735ee1"
-version = "0.6.3"
+version = "0.6.4"
 
 [[deps.SentinelArrays]]
 deps = ["Dates", "Random"]
@@ -554,6 +566,12 @@ version = "1.0.3"
 
 [[deps.Sockets]]
 uuid = "6462fe0b-24de-5631-8697-dd941f90decc"
+
+[[deps.SortingAlgorithms]]
+deps = ["DataStructures"]
+git-tree-sha1 = "a4ada03f999bd01b3a25dcaa30b2d929fe537e00"
+uuid = "a2af1166-a08f-5f64-846c-94a0d3cef48c"
+version = "1.1.0"
 
 [[deps.SparseArrays]]
 deps = ["LinearAlgebra", "Random"]
@@ -585,6 +603,18 @@ version = "1.4.0"
 [[deps.Statistics]]
 deps = ["LinearAlgebra", "SparseArrays"]
 uuid = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
+
+[[deps.StatsAPI]]
+deps = ["LinearAlgebra"]
+git-tree-sha1 = "45a7769a04a3cf80da1c1c7c60caf932e6f4c9f7"
+uuid = "82ae8749-77ed-4fe6-ae5f-f523153014b0"
+version = "1.6.0"
+
+[[deps.StatsBase]]
+deps = ["DataAPI", "DataStructures", "LinearAlgebra", "LogExpFunctions", "Missings", "Printf", "Random", "SortingAlgorithms", "SparseArrays", "Statistics", "StatsAPI"]
+git-tree-sha1 = "75ebe04c5bed70b91614d684259b661c9e6274a4"
+uuid = "2913bbd2-ae8a-5f71-8c99-4fb6c76f3a91"
+version = "0.34.0"
 
 [[deps.Strided]]
 deps = ["LinearAlgebra", "TupleTools"]

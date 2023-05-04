@@ -1,7 +1,7 @@
 id = "0xd75c4dbcb215a6cf9097cfbcc70aab2596b96a9c"
 writedir = "data"
 readdir = "data"
-max_allocations = 50
+max_allocations = 100
 whitelist = []
 blacklist = []
 frozenlist = []
