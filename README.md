@@ -3,6 +3,14 @@
 This repository documents experiments for the pairwise-greedy optimisation algorithm for the indexing allocation optimisation problem.
 For now, see the [blog post](https://semiotic.ai/articles/indexer-allocation-optimisation/) for a description of the problem.
 
+## TL;DR
+
+|              | Zeros              | Random 1          | Random 2           | Random 3           | Halpern            | Opt               |
+|--------------|--------------------|-------------------|--------------------|--------------------|--------------------|-------------------|
+| g=0; K=341   | 259934.0887313822  | 259934.0887313822 | 259934.0887313822  | 259934.0887313822  | 259934.0887313822  | 259934.0887313822 |
+| g=0; K=100   | 257541.37924125863 |                   |                    |                    | 257541.37924125863 |                   |
+| g=100; K=341 | 247506.17506435083 | 244968.7897643766 | 244601.89014100385 | 245923.27479783745 | 247506.17506435083 | 243534.0887313822 |
+
 ## Zeros Initialisation
 
 In this experiment, we initialise PGO iterations with zeros.
