@@ -9,15 +9,17 @@ import AllocationOpt: optimize, optimizek
 include("console_logger.jl")
 
 function optimize(::Val{:optimal}, Ω, ψ, σ, K, Φ, Ψ, g, rixs)
+    println("Gas: $g")
+    println("Max Allocations: $K")
 
-    rixs = 1:length(Ω)
+    # rixs = 1:length(Ω)
 
     xhalp, nhalp, phalp = AllocationOpt.optimize(Val(:fast), Ω, ψ, σ, K, Φ, Ψ, g, rixs)
     halpprofit, ihalp = findmax(col -> col |> sum, eachcol(phalp))
     xhalpopt = xhalp[:, ihalp]
 
-    @show halpprofit
-    @show nhalp[ihalp]
+    println("Halpern profit: $halpprofit")
+    println("Halpern nonzeros: $(nhalp[ihalp])")
 
     # Only use the eligible subgraphs
     _Ω = @view Ω[rixs]
@@ -56,25 +58,24 @@ function optimize(::Val{:optimal}, Ω, ψ, σ, K, Φ, Ψ, g, rixs)
             ),
             logger,
             clogger,
-        ],
+        ]
     )
     sol = minimize!(obj, alg)
 
-    @show SemioticOpt.data(logger)[end]
+    println("Iterations to converge: $(SemioticOpt.data(logger)[end])")
 
     _x[rixs, 1] .= SemioticOpt.x(sol)
     nonzeros[1] = _x[:, 1] |> AllocationOpt.nonzero |> length
     profits[:, 1] .= AllocationOpt.profit.(AllocationOpt.indexingreward.(_x[:, 1], Ω, ψ, Φ, Ψ), g)
 
+    println("Number of nonzeros: $(nonzeros[end])")
+    println("PGO Profit: $(profits[:, end] |> sum)")
+
     return _x, nonzeros, profits
 end
 
 function main()
-    profits = Float64[]
     AllocationOpt.main("config.toml")
-    d = readlines("data/report.json") |> first |> JSON3.read |> copy
-    push!(profits, d[:strategies][1][:profit])
-    @show profits
     return nothing
 end
 
@@ -100,7 +101,6 @@ julia> AllocationOpt.optimizek(xopt, Ω, ψ, σ, k, Φ, Ψ)
 ```
 """
 function optimizek(xopt, Ω, ψ, σ, k, Φ, Ψ)
-    @show k
     clogger = ConsoleLogger(name="i", f=(a; kws...) -> kws[:i], frequency=1000)
     stoplogger = ConsoleLogger(name="stop", f=(a; kws...) -> norm(x(a) - kws[:z]), frequency=1000)
 
@@ -115,7 +115,7 @@ function optimizek(xopt, Ω, ψ, σ, k, Φ, Ψ)
             # clogger,
             # stoplogger,
         ],
-        t=projection,
+        t=projection
     )
     f = x -> AllocationOpt.indexingreward(x, ψ, Ω, Φ, Ψ)
     sol = minimize!(f, alg)

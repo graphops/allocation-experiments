@@ -80,7 +80,6 @@ function optimize(::Val{:optimal}, Ω, ψ, σ, K, Φ, Ψ, g, rixs)
 end
 
 function main()
-    profits = Float64[]
     AllocationOpt.main("config.toml")
     return nothing
 end

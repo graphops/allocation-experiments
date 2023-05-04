@@ -73,7 +73,6 @@ function optimize(::Val{:optimal}, Ω, ψ, σ, K, Φ, Ψ, g, rixs)
     )
     sol = minimize!(obj, alg)
 
-
     println("Iterations to converge: $(SemioticOpt.data(logger)[end])")
 
     _x[rixs, 1] .= SemioticOpt.x(sol)
@@ -88,7 +87,6 @@ function optimize(::Val{:optimal}, Ω, ψ, σ, K, Φ, Ψ, g, rixs)
 end
 
 function main()
-    profits = Float64[]
     for _ ∈ 1:3
         AllocationOpt.main("config.toml")
     end
