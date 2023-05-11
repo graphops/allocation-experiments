@@ -2,36 +2,24 @@ using AllocationOpt
 using SemioticOpt
 using JSON3
 using Random
+using LinearAlgebra
 
-import AllocationOpt: optimize
+import AllocationOpt: optimize, optimizek
 
-include("console_logger.jl")
+function optimizek(::Val{:optimal}, x₀, Ω, ψ, σ, k, Φ, Ψ, g)
 
-function optimize(::Val{:optimal}, Ω, ψ, σ, K, Φ, Ψ, g, rixs)
-
-    println("Gas: $g")
-    println("Max Allocations: $K")
-
-    # rixs = 1:length(Ω)
-
-    # Only use the eligible subgraphs
-    _Ω = @view Ω[rixs]
-    _ψ = @view ψ[rixs]
+    println("k: $k")
 
     # Helper function to compute profit
-    obj = x -> -AllocationOpt.profit.(AllocationOpt.indexingreward.(x, _Ω, _ψ, Φ, Ψ), g) |> sum
+    obj = x -> -AllocationOpt.profit.(AllocationOpt.indexingreward.(x, Ω, ψ, Φ, Ψ), g) |> sum
 
-    # Preallocate solution vectors for in-place operations
-    _x = zeros(length(ψ), 1)
-    profits = Matrix{Float64}(undef, length(ψ), 1)
-    nonzeros = Vector{Int32}(undef, 1)
-
+    # Function to get support for analytic optimisation
     f(x, ixs) = ixs
 
     # Set up optimizer
     function makeanalytic(x)
         return AllocationOpt.AnalyticOpt(;
-            x=x, Ω=_Ω, ψ=_ψ, σ=σ, hooks=[StopWhen((a; kws...) -> kws[:i] > 1)]
+            x=x, Ω=Ω, ψ=ψ, σ=σ, hooks=[StopWhen((a; kws...) -> kws[:i] > 1)]
         )
     end
 
@@ -44,39 +32,75 @@ function optimize(::Val{:optimal}, Ω, ψ, σ, K, Φ, Ψ, g, rixs)
         return v
     end
 
-    logger = VectorLogger(name="i", data=Int32[], f=(a; kws...) -> kws[:i])
+    logger = VectorLogger(name="i", frequency=1, data=Int32[], f=(a; kws...) -> kws[:i])
 
     alg = PairwiseGreedyOpt(;
-        kmax=K,
-        x=zeros(length(_ψ)),
-        xinit=zeros(length(_ψ)),
+        kmax=k,
+        x=x₀,
+        xinit=zeros(length(ψ)),
         f=f,
         a=makeanalytic,
         hooks=[
             StopWhen((a; kws...) -> kws[:f](kws[:z]) ≥ kws[:f](SemioticOpt.x(a))),
             StopWhen(stop_full),
-            # ConsoleLogger(name="fcurr", f=(a; kws...) -> -kws[:f](SemioticOpt.x(a)), frequency=1),
-            # ConsoleLogger(name="fnew", f=(a; kws...) -> -kws[:f](kws[:z]), frequency=1),
-            # ConsoleLogger(name="nnz", f=(a; kws...) -> AllocationOpt.nonzero(kws[:z]) |> length, frequency=1),
             logger,
         ]
     )
     sol = minimize!(obj, alg)
 
-    println("Iterations to converge: $(SemioticOpt.data(logger)[end])")
+    return floor.(SemioticOpt.x(sol); digits=1), SemioticOpt.data(logger)[end] - 1
+end
 
-    _x[rixs, 1] .= SemioticOpt.x(sol)
-    nonzeros[1] = _x[:, 1] |> AllocationOpt.nonzero |> length
-    profits[:, 1] .= AllocationOpt.profit.(AllocationOpt.indexingreward.(_x[:, 1], Ω, ψ, Φ, Ψ), g)
+function optimize(val::Val{:optimal}, Ω, ψ, σ, K, Φ, Ψ, g, rixs)
 
-    println("Number of nonzeros: $(nonzeros[end])")
-    println("PGO Profit: $(profits[:, end] |> sum)")
+    # Helper function to compute profit
+    f = x -> AllocationOpt.profit.(AllocationOpt.indexingreward.(x, Ω, ψ, Φ, Ψ), g)
+
+    # Only use the eligible subgraphs
+    _Ω = @view Ω[rixs]
+    _ψ = @view ψ[rixs]
+
+    # Preallocate solution vectors for in-place operations
+    x = Matrix{Float64}(undef, length(Ω), K)
+    profits = zeros(length(Ω), K)
+    # Nonzeros defaults to ones and not zeros because the optimiser will always find
+    # at least one non-zero, meaning that the ones with zero profits will be filtered out
+    # during reporting. In other words, this prevents the optimiser from reporting or
+    # executing something that was never run.
+    nonzeros = ones(Int32, K)
+
+    counts = zeros(Int32, K)
+
+    # Optimize
+    @inbounds for k in 1:K
+        x[:, k] .= k == 1 ? zeros(length(Ω)) : x[:, k-1]
+        v, i = AllocationOpt.optimizek(val, x[rixs, k], _Ω, _ψ, σ, k, Φ, Ψ, g)
+        x[rixs, k] .= v
+        counts[k] = k == 1 ? i : counts[k-1] + i
+        nonzeros[k] = x[:, k] |> AllocationOpt.nonzero |> length
+        profits[:, k] .= f(x[:, k])
+        # Early stoppping if converged
+        if k > 1
+            if norm(x[:, k] - x[:, k-1]) ≤ 0.1
+                break
+            end
+        end
+    end
+
+    bestprofit, bestix = dropdims(sum(profits, dims=1); dims=1) |> findmax
+
+    println("Gas: $g")
+    println("Max Allocations: $K")
+
+    println("PGO profit: $bestprofit")
+    println("PGO nonzeros: $(nonzeros[bestix])")
+    println("Iterations to Converge: $(counts[bestix])")
 
     _xopt = AllocationOpt.optimizeanalytic(_Ω, _ψ, σ)
     println("Analytic optimum nonzeros: $(length(AllocationOpt.nonzero(_xopt)))")
     println("Analytic optimum profit: $(AllocationOpt.profit.(AllocationOpt.indexingreward.(_xopt, _Ω, _ψ, Φ, Ψ), g) |> sum)")
 
-    return _x, nonzeros, profits
+    return x, nonzeros, profits
 end
 
 function main()

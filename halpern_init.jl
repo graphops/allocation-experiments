@@ -1,123 +1,112 @@
 using AllocationOpt
 using SemioticOpt
 using JSON3
-using LinearAlgebra
 using Random
+using LinearAlgebra
 
 import AllocationOpt: optimize, optimizek
 
-include("console_logger.jl")
+function optimizek(::Val{:optimal}, x₀, Ω, ψ, σ, k, Φ, Ψ, g)
 
-function optimize(::Val{:optimal}, Ω, ψ, σ, K, Φ, Ψ, g, rixs)
-    println("Gas: $g")
-    println("Max Allocations: $K")
-
-    # rixs = 1:length(Ω)
-
-    xhalp, nhalp, phalp = AllocationOpt.optimize(Val(:fast), Ω, ψ, σ, K, Φ, Ψ, g, rixs)
-    halpprofit, ihalp = findmax(col -> col |> sum, eachcol(phalp))
-    xhalpopt = xhalp[:, ihalp]
-
-    println("Halpern profit: $halpprofit")
-    println("Halpern nonzeros: $(nhalp[ihalp])")
-
-    # Only use the eligible subgraphs
-    _Ω = @view Ω[rixs]
-    _ψ = @view ψ[rixs]
+    println("k: $k")
 
     # Helper function to compute profit
-    obj = x -> -AllocationOpt.profit.(AllocationOpt.indexingreward.(x, _Ω, _ψ, Φ, Ψ), g) |> sum
+    obj = x -> -AllocationOpt.profit.(AllocationOpt.indexingreward.(x, Ω, ψ, Φ, Ψ), g) |> sum
 
-    # Preallocate solution vectors for in-place operations
-    _x = zeros(length(ψ), 1)
-    profits = Matrix{Float64}(undef, length(ψ), 1)
-    nonzeros = Vector{Int32}(undef, 1)
-
+    # Function to get support for analytic optimisation
     f(x, ixs) = ixs
 
     # Set up optimizer
     function makeanalytic(x)
         return AllocationOpt.AnalyticOpt(;
-            x=x, Ω=_Ω, ψ=_ψ, σ=σ, hooks=[StopWhen((a; kws...) -> kws[:i] > 1)]
+            x=x, Ω=Ω, ψ=ψ, σ=σ, hooks=[StopWhen((a; kws...) -> kws[:i] > 1)]
         )
     end
 
-    logger = VectorLogger(name="i", data=Int32[], f=(a; kws...) -> kws[:i])
-    clogger = ConsoleLogger(name="i", f=(a; kws...) -> kws[:i], frequency=1000)
+    # Can't make any more swaps, so stop. Also assign the final value of x.
+    function stop_full(a; kws...)
+        v = length(kws[:z]) == length(SemioticOpt.nonzeroixs(kws[:z]))
+        if v
+            kws[:op](a, kws[:z])
+        end
+        return v
+    end
+
+    logger = VectorLogger(name="i", frequency=1, data=Int32[], f=(a; kws...) -> kws[:i])
 
     alg = PairwiseGreedyOpt(;
-        kmax=K,
-        x=zeros(length(_ψ)),
-        xinit=xhalpopt[rixs],
+        kmax=k,
+        x=x₀,
+        xinit=x₀,
         f=f,
         a=makeanalytic,
         hooks=[
             StopWhen((a; kws...) -> kws[:f](kws[:z]) ≥ kws[:f](SemioticOpt.x(a))),
-            StopWhen(
-                (a; kws...) -> length(kws[:z]) == length(SemioticOpt.nonzeroixs(kws[:z]))
-            ),
+            StopWhen(stop_full),
             logger,
-            clogger,
         ]
     )
     sol = minimize!(obj, alg)
 
-    println("Iterations to converge: $(SemioticOpt.data(logger)[end])")
+    return floor.(SemioticOpt.x(sol); digits=1), SemioticOpt.data(logger)[end] - 1
+end
 
-    _x[rixs, 1] .= SemioticOpt.x(sol)
-    nonzeros[1] = _x[:, 1] |> AllocationOpt.nonzero |> length
-    profits[:, 1] .= AllocationOpt.profit.(AllocationOpt.indexingreward.(_x[:, 1], Ω, ψ, Φ, Ψ), g)
+function optimize(val::Val{:optimal}, Ω, ψ, σ, K, Φ, Ψ, g, rixs)
 
-    println("Number of nonzeros: $(nonzeros[end])")
-    println("PGO Profit: $(profits[:, end] |> sum)")
+    xhalp, nhalp, phalp = AllocationOpt.optimize(Val(:fast), Ω, ψ, σ, K, Φ, Ψ, g, rixs)
+    halpprofit, ihalp = findmax(col -> col |> sum, eachcol(phalp))
+    xhalpopt = xhalp[:, ihalp]
 
-    return _x, nonzeros, profits
+    # Helper function to compute profit
+    f = x -> AllocationOpt.profit.(AllocationOpt.indexingreward.(x, Ω, ψ, Φ, Ψ), g)
+
+    # Only use the eligible subgraphs
+    _Ω = @view Ω[rixs]
+    _ψ = @view ψ[rixs]
+
+    # Preallocate solution vectors for in-place operations
+    x = Matrix{Float64}(undef, length(Ω), K)
+    profits = zeros(length(Ω), K)
+    # Nonzeros defaults to ones and not zeros because the optimiser will always find
+    # at least one non-zero, meaning that the ones with zero profits will be filtered out
+    # during reporting. In other words, this prevents the optimiser from reporting or
+    # executing something that was never run.
+    nonzeros = ones(Int32, K)
+
+    counts = zeros(Int32, K)
+
+    # Optimize
+    @inbounds for k in 1:K
+        x[:, k] .= k == 1 ? xhalpopt : x[:, k-1]
+        v, i = AllocationOpt.optimizek(val, x[rixs, k], _Ω, _ψ, σ, k, Φ, Ψ, g)
+        x[rixs, k] .= v
+        counts[k] = k == 1 ? i : counts[k-1] + i
+        nonzeros[k] = x[:, k] |> AllocationOpt.nonzero |> length
+        profits[:, k] .= f(x[:, k])
+        # Early stoppping if converged
+        if k > 1
+            if norm(x[:, k] - x[:, k-1]) ≤ 0.1
+                break
+            end
+        end
+    end
+
+    bestprofit, bestix = dropdims(sum(profits, dims=1); dims=1) |> findmax
+
+    println("Gas: $g")
+    println("Max Allocations: $K")
+
+    println("PGO profit: $bestprofit")
+    println("PGO nonzeros: $(nonzeros[bestix])")
+    println("Iterations to Converge: $(counts[bestix])")
+
+    println("Halpern profit: $halpprofit")
+    println("Halpern nonzeros: $(nhalp[ihalp])")
+
+    return x, nonzeros, profits
 end
 
 function main()
     AllocationOpt.main("config.toml")
     return nothing
-end
-
-"""
-    optimizek(Ω, ψ, σ, k, Φ, Ψ)
-
-Find the optimal `k` sparse vector given allocations of other indexers `Ω`, signals
-`ψ`, available stake `σ`, new tokens issued `Φ`, and total signal `Ψ`.
-
-```julia
-julia> using AllocationOpt
-julia> xopt = [2.5, 2.5]
-julia> Ω = [1.0, 1.0]
-julia> ψ = [10.0, 10.0]
-julia> σ = 5.0
-julia> k = 1
-julia> Φ = 1.0
-julia> Ψ = 20.0
-julia> AllocationOpt.optimizek(xopt, Ω, ψ, σ, k, Φ, Ψ)
-2-element Vector{Float64}:
- 5.0
- 0.0
-```
-"""
-function optimizek(xopt, Ω, ψ, σ, k, Φ, Ψ)
-    clogger = ConsoleLogger(name="i", f=(a; kws...) -> kws[:i], frequency=1000)
-    stoplogger = ConsoleLogger(name="stop", f=(a; kws...) -> norm(x(a) - kws[:z]), frequency=1000)
-
-    projection = x -> gssp(x, k, σ)
-    alg = ProjectedGradientDescent(;
-        x=xopt,
-        η=stepsize(AllocationOpt.lipschitzconstant(ψ, Ω)),
-        hooks=[
-            StopWhen((a; kws...) -> norm(x(a) - kws[:z]) < 1e-2),
-            StopWhen((a; kws...) -> kws[:i] > 10000),
-            HalpernIteration(; x₀=xopt, λ=i -> 1.0 / i),
-            # clogger,
-            # stoplogger,
-        ],
-        t=projection
-    )
-    f = x -> AllocationOpt.indexingreward(x, ψ, Ω, Φ, Ψ)
-    sol = minimize!(f, alg)
-    return floor.(SemioticOpt.x(sol); digits=1)
 end
